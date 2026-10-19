@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AIアシスタント</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#fafafa;--surface:#f0f0f0;--surface2:#e5e5e5;
+  --text:#1a1a1a;--text2:#555;--text3:#999;--border:#e0e0e0;
+  --accent:#4285f4;--accent-soft:rgba(66,133,244,0.08);
+  --drawer-bg:#fff;--shadow:0 4px 24px rgba(0,0,0,0.08);
+}
+[data-theme="dark"]{
+  --bg:#161618;--surface:#1e1e22;--surface2:#2a2a30;
+  --text:#e8e8e8;--text2:#a0a0a0;--text3:#666;--border:#333;
+  --accent:#8ab4f8;--accent-soft:rgba(138,180,248,0.1);
+  --drawer-bg:#1a1a1e;--shadow:0 4px 24px rgba(0,0,0,0.4);
+}
+html,body{
+  height:100%;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  overflow:hidden;transition:background .4s;
+}
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.bg::before,.bg::after{
+  content:'';position:absolute;border-radius:50%;
+  filter:blur(80px);opacity:0;animation:bgPulse 10s ease-in-out infinite alternate;
+}
+.bg::before{width:60vw;height:60vw;top:-10%;left:-10%;background:radial-gradient(circle,rgba(66,133,244,0.12),transparent 70%)}
+.bg::after{width:50vw;height:50vw;bottom:-5%;right:-5%;background:radial-gradient(circle,rgba(155,114,203,0.10),transparent 70%);animation-delay:-5s}
+[data-theme="dark"] .bg::before{background:radial-gradient(circle,rgba(66,133,244,0.08),transparent 70%)}
+[data-theme="dark"] .bg::after{background:radial-gradient(circle,rgba(155,114,203,0.06),transparent 70%)}
+@keyframes bgPulse{0%{opacity:0;transform:scale(0.8)}50%{opacity:1;transform:scale(1)}100%{opacity:0.6;transform:scale(1.1)}}
+
+/* Layout: 幅いっぱいに使う */
+.app{position:relative;z-index:1;display:flex;flex-direction:column;height:100dvh;width:100%;margin:0}
+.top{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;flex-shrink:0}
+.top-btn{width:44px;height:44px;border:none;background:transparent;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);transition:background .15s}
+.top-btn:active{background:var(--surface)}
+.top-btn svg{width:22px;height:22px}
+.top-title{font-size:15px;font-weight:500;color:var(--text2);letter-spacing:-0.1px}
+
+.main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column}
+.main-inner{flex:1;display:flex;flex-direction:column;padding:0 20px}
+
+.greet{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:60px 0}
+.greet-hello{font-size:28px;font-weight:400;letter-spacing:-0.5px;text-align:center}
+.greet-sub{font-size:14px;color:var(--text3);text-align:center}
+
+.msgs{display:none;flex-direction:column;gap:32px;padding:32px 0 40px}
+.msg{animation:mIn .3s ease}
+@keyframes mIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.msg-u{display:flex;justify-content:flex-end}
+.msg-u .bub{background:var(--surface);padding:14px 20px;border-radius:24px;font-size:15px;line-height:1.6;max-width:85%;word-break:break-word;white-space:pre-wrap}
+.msg-a{font-size:15px;line-height:1.8;word-break:break-word;white-space:pre-wrap}
+.msg-a img{max-width:100%;border-radius:16px;margin-top:12px;display:block}
+
+.dots{display:inline-flex;gap:6px;padding:4px 0}
+.dots span{width:8px;height:8px;border-radius:50%;background:var(--text3);animation:hop 1.4s infinite}
+.dots span:nth-child(2){animation-delay:.2s}
+.dots span:nth-child(3){animation-delay:.4s}
+@keyframes hop{0%,60%,100%{transform:translateY(0);opacity:.3}30%{transform:translateY(-6px);opacity:1}}
+
+.inp-zone{padding:12px 16px 24px;flex-shrink:0}
+.inp-bar{display:flex;align-items:center;background:var(--surface);border-radius:28px;padding:6px;border:1px solid var(--border);transition:border-color .2s,box-shadow .2s}
+.inp-bar:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.inp-plus{width:40px;height:40px;border:none;background:transparent;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);flex-shrink:0;transition:background .15s}
+.inp-plus:active{background:var(--surface2)}
+.inp-plus svg{width:20px;height:20px}
+.inp-bar textarea{flex:1;border:none;background:transparent;font-size:15px;line-height:1.5;resize:none;outline:none;font-family:inherit;padding:10px 4px;color:var(--text);max-height:120px;min-height:24px}
+.inp-bar textarea::placeholder{color:var(--text3)}
+.inp-send{width:40px;height:40px;min-width:40px;border-radius:50%;border:none;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:opacity .15s,transform .1s;flex-shrink:0}
+.inp-send:disabled{opacity:0.2;cursor:default}
+.inp-send:active{transform:scale(0.92)}
+.inp-send svg{width:18px;height:18px}
+
+.mode-ind{display:flex;align-items:center;gap:8px;padding:0 20px 8px;font-size:12px;color:var(--text3)}
+.seg{padding:6px 14px;border-radius:16px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;min-height:32px}
+.seg.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.mode-ind select{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);font-size:12px;color:var(--text);outline:none;cursor:pointer}
+
+/* PCでは左右に適度な余白 */
+@media(min-width:900px){
+  .main-inner{padding:0 48px}
+  .inp-zone{padding:12px 48px 24px}
+  .mode-ind{padding:0 48px 8px}
+  .msg-u .bub{max-width:70%}
+}
+
+.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:400}
+.drawer-overlay.on{display:block}
+.drawer{position:fixed;top:0;left:0;bottom:0;width:280px;background:var(--drawer-bg);z-index:500;transform:translateX(-100%);transition:transform .25s ease;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.drawer.on{transform:translateX(0)}
+.drawer-head{padding:20px 16px 12px;display:flex;align-items:center;justify-content:space-between}
+.drawer-head h3{font-size:15px;font-weight:600}
+.drawer-head button{width:36px;height:36px;border:none;background:transparent;border-radius:50%;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:18px}
+.drawer-head button:active{background:var(--surface)}
+.drawer-new{margin:0 16px 12px;padding:12px 16px;border-radius:12px;border:1px dashed var(--border);background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;text-align:center;min-height:44px;transition:background .15s}
+.drawer-new:active{background:var(--surface)}
+.drawer-list{flex:1;overflow-y:auto;padding:0 8px}
+.d-item{padding:12px;border-radius:10px;cursor:pointer;transition:background .1s;min-height:44px}
+.d-item:active{background:var(--surface)}
+.d-item .d-t{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d-item .d-d{font-size:11px;color:var(--text3);margin-top:2px}
+.d-empty{text-align:center;color:var(--text3);font-size:13px;padding:32px 16px}
+.drawer-foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px}
+.d-foot-btn{flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:transparent;font-size:12px;font-weight:500;cursor:pointer;color:var(--text2);min-height:40px}
+.d-foot-btn:active{background:var(--surface)}
+.d-foot-btn.danger{color:#d93025;border-color:rgba(217,48,37,0.2)}
+
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:600;align-items:center;justify-content:center;padding:24px}
+.ov.on{display:flex}
+.mdl{background:var(--bg);border-radius:20px;padding:28px 24px;width:100%;max-width:340px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.mdl h2{font-size:17px;font-weight:600;margin-bottom:16px}
+.mdl label{display:block;font-size:13px;color:var(--text2);margin-bottom:6px;font-weight:500}
+.mdl input{width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:12px;font-size:15px;outline:none;background:var(--surface);color:var(--text)}
+.mdl input:focus{border-color:var(--accent)}
+.mdl .tip{font-size:12px;color:var(--text3);margin-top:10px;line-height:1.5}
+.mdl-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.mbtn{padding:12px 20px;border-radius:24px;border:1px solid var(--border);background:var(--surface);font-size:14px;font-weight:500;cursor:pointer;min-height:44px;color:var(--text)}
+.mbtn:active{background:var(--surface2)}
+.mbtn-p{background:var(--text);color:var(--bg);border-color:var(--text)}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<div class="app">
+  <div class="top">
+    <button class="top-btn" onclick="openDrawer()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <span class="top-title">AIアシスタント</span>
+    <div style="display:flex;gap:0">
+      <button class="top-btn" onclick="toggleTheme()" id="thBtn">
+        <svg id="thIc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></svg>
+      </button>
+      <button class="top-btn" onclick="openSet()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="main" id="mMain">
+    <div class="main-inner">
+      <div class="greet" id="greet">
+        <div class="greet-hello">何をお手伝いしましょうか</div>
+        <div class="greet-sub">文章の作成や画像生成ができます</div>
+      </div>
+      <div class="msgs" id="mList"></div>
+    </div>
+  </div>
+
+  <div class="mode-ind" id="modeInd">
+    <button class="seg on" id="mTxt" onclick="setMode('text')">テキスト</button>
+    <button class="seg" id="mImg" onclick="setMode('image')">🎨 画像生成</button>
+    <span id="arWrap" style="display:none;align-items:center;gap:6px">
+      <span>比率</span>
+      <select id="arSel">
+        <option value="1:1">1:1</option>
+        <option value="4:3">4:3</option>
+        <option value="3:4">3:4</option>
+        <option value="16:9" selected>16:9</option>
+        <option value="9:16">9:16</option>
+      </select>
+    </span>
+  </div>
+
+  <div class="inp-zone">
+    <div class="inp-bar">
+      <button class="inp-plus" onclick="toggleMode()" id="plusBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <textarea id="inp" rows="1" placeholder="質問や指示を入力..." oninput="onType()"></textarea>
+      <button class="inp-send" id="sBtn" onclick="go()" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="drawer-overlay" id="drOv" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <h3>履歴</h3>
+    <button onclick="closeDrawer()">✕</button>
+  </div>
+  <button class="drawer-new" onclick="newChat()">＋ 新規チャット</button>
+  <div class="drawer-list" id="drList"></div>
+  <div class="drawer-foot">
+    <button class="d-foot-btn danger" onclick="clearAll()">全削除</button>
+    <button class="d-foot-btn" onclick="closeDrawer()">閉じる</button>
+  </div>
+</div>
+
+<div class="ov" id="ovSet">
+  <div class="mdl">
+    <h2>APIキー設定</h2>
+    <label>Gemini API キー</label>
+    <input type="password" id="kInp" placeholder="AIzaSy...">
+    <p class="tip">aistudio.google.com で無料取得。<br>この端末にのみ保存されます。</p>
+    <label style="margin-top:14px">テキストモデル名</label>
+    <input type="text" id="mTxtInp" placeholder="gemini-3.5-flash">
+    <label style="margin-top:14px">画像モデル名</label>
+    <input type="text" id="mImgInp" placeholder="gemini-2.5-flash-image">
+    <div class="mdl-btns">
+      <button class="mbtn" onclick="closeSet()">キャンセル</button>
+      <button class="mbtn mbtn-p" onclick="saveKey()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var mode='text',cid=null,msgs=[],busy=false;
+var DEF_TXT='gemini-3.5-flash',DEF_IMG='gemini-2.5-flash-image';
+function txtModel(){return localStorage.getItem('g_mtxt')||DEF_TXT}
+function imgModel(){return localStorage.getItem('g_mimg')||DEF_IMG}
+var chats=[];
+try{chats=JSON.parse(localStorage.getItem('g_chats')||'[]')}catch(e){chats=[]}
+
+var SUN='<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+var MOON='<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+
+// Theme
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  localStorage.setItem('g_theme',t);
+  document.getElementById('thIc').innerHTML=(t==='dark')?MOON:SUN;
+}
+function toggleTheme(){
+  var c=document.documentElement.getAttribute('data-theme')||'light';
+  applyTheme(c==='light'?'dark':'light');
+}
+
+window.onload=function(){
+  applyTheme(localStorage.getItem('g_theme')||'light');
+  if(!localStorage.getItem('g_key'))openSet();
+  grow();
+};
+
+// Settings
+function openSet(){
+  document.getElementById('kInp').value=localStorage.getItem('g_key')||'';
+  document.getElementById('mTxtInp').value=txtModel();
+  document.getElementById('mImgInp').value=imgModel();
+  document.getElementById('ovSet').classList.add('on');
+}
+function closeSet(){document.getElementById('ovSet').classList.remove('on')}
+function saveKey(){
+  var k=document.getElementById('kInp').value.trim();
+  if(!k){alert('APIキーを入力してください');return}
+  localStorage.setItem('g_key',k);
+  localStorage.setItem('g_mtxt',document.getElementById('mTxtInp').value.trim()||DEF_TXT);
+  localStorage.setItem('g_mimg',document.getElementById('mImgInp').value.trim()||DEF_IMG);
+  closeSet();
+}
+
+// Drawer
+function openDrawer(){
+  drawDr();
+  document.getElementById('drawer').classList.add('on');
+  document.getElementById('drOv').classList.add('on');
+}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('on');
+  document.getElementById('drOv').classList.remove('on');
+}
+function drawDr(){
+  var el=document.getElementById('drList');
+  el.innerHTML='';
+  if(!chats.length){el.innerHTML='<div class="d-empty">履歴がありません</div>';return}
+  chats.forEach(function(c){
+    var d=new Date(c.time);
+    var ts=(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+    var div=document.createElement('div');
+    div.className='d-item';
+    div.innerHTML='<div class="d-t">'+esc(c.title)+'</div><div class="d-d">'+ts+'</div>';
+    div.onclick=function(){loadC(c.id);closeDrawer()};
+    el.appendChild(div);
+  });
+}
+function newChat(){
+  cid=null;msgs=[];draw();closeDrawer();
+  document.getElementById('inp').focus();
+}
+function loadC(id){
+  var c=chats.find(function(x){return x.id===id});
+  if(!c)return;
+  cid=id;msgs=c.messages;draw();
+}
+function clearAll(){
+  if(!confirm('すべて削除しますか？'))return;
+  chats=[];cid=null;msgs=[];
+  localStorage.setItem('g_chats','[]');
+  draw();drawDr();
+}
+function saveC(){
+  var t='';
+  for(var i=0;i<msgs.length;i++){if(msgs[i].role==='user'){t=msgs[i].content.substring(0,30);break}}
+  var c={id:cid,title:t||'会話',time:new Date().toISOString(),messages:msgs};
+  var idx=-1;
+  for(var i=0;i<chats.length;i++){if(chats[i].id===cid){idx=i;break}}
+  if(idx>=0)chats[idx]=c;else chats.unshift(c);
+  if(chats.length>50)chats=chats.slice(0,50);
+  // 容量オーバー時は古い履歴から削除して再試行
+  while(true){
+    try{localStorage.setItem('g_chats',JSON.stringify(chats));break}
+    catch(e){
+      if(chats.length<=1)break;
+      chats.pop();
+    }
+  }
+}
+
+// Mode
+function toggleMode(){setMode(mode==='text'?'image':'text')}
+function setMode(m){
+  mode=m;
+  document.getElementById('mTxt').classList.toggle('on',m==='text');
+  document.getElementById('mImg').classList.toggle('on',m==='image');
+  document.getElementById('arWrap').style.display=m==='image'?'flex':'none';
+  document.getElementById('plusBtn').style.color=m==='image'?'var(--accent)':'';
+  document.getElementById('inp').placeholder=m==='text'?'質問や指示を入力...':'生成したい画像を説明...';
+}
+
+// Input
+function onType(){
+  grow();
+  document.getElementById('sBtn').disabled=!document.getElementById('inp').value.trim()||busy;
+}
+function grow(){
+  var el=document.getElementById('inp');
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight,120)+'px';
+}
+
+// Send
+function go(){
+  var inp=document.getElementById('inp');
+  var text=inp.value.trim();
+  if(!text||busy)return;
+  var key=localStorage.getItem('g_key');
+  if(!key){openSet();return}
+  if(!cid){cid=Date.now().toString();msgs=[]}
+  var curMode=mode;
+  msgs.push({role:'user',content:text});
+  inp.value='';grow();
+  busy=true;onType();
+  draw();showDot();
+  var p=(curMode==='image')?apiImg(key,text):apiTxt(key,msgs);
+  p.then(function(res){
+    hideDot();
+    msgs.push({role:'assistant',content:res,type:curMode==='image'?'image':'text'});
+    draw();saveC();
+  }).catch(function(err){
+    hideDot();
+    msgs.push({role:'assistant',content:'⚠️ '+err.message,type:'error'});
+    draw();
+  }).then(function(){busy=false;onType()});
+}
+
+// API
+function readParts(d){
+  if(d.promptFeedback&&d.promptFeedback.blockReason)
+    throw new Error('ブロックされました: '+d.promptFeedback.blockReason);
+  var c=d.candidates&&d.candidates[0];
+  if(!c)throw new Error('応答が空でした');
+  return{parts:(c.content&&c.content.parts)||[],reason:c.finishReason||''};
+}
+function httpCheck(r){
+  if(!r.ok)return r.json().then(function(e){throw new Error(e.error&&e.error.message||'HTTP '+r.status)});
+  return r.json();
+}
+function apiTxt(key,messages,retried){
+  // 画像(base64)とエラー表示は送らない。同じroleが連続したら結合する
+  var contents=[];
+  messages.forEach(function(m){
+    if(m.type==='image'||m.type==='error')return;
+    var role=m.role==='user'?'user':'model';
+    var last=contents[contents.length-1];
+    if(last&&last.role===role){last.parts[0].text+='\n'+m.content}
+    else contents.push({role:role,parts:[{text:m.content}]});
+  });
+  return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(txtModel())+':generateContent?key='+key,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      systemInstruction:{parts:[{text:'ツールや関数は利用できません。関数呼び出しは行わず、通常のテキストだけでユーザーの言語で回答してください。'}]},
+      contents:contents
+    })
+  }).then(httpCheck).then(function(d){
+    var r=readParts(d);
+    var t=r.parts.filter(function(p){return p.text&&!p.thought}).map(function(p){return p.text}).join('');
+    if(!t&&!retried&&r.reason==='MALFORMED_FUNCTION_CALL')return apiTxt(key,messages,true); // 1回だけ自動リトライ
+    if(!t)throw new Error('テキストが返りませんでした'+(r.reason?'（'+r.reason+'）':''));
+    return t;
+  });
+}
+function apiImg(key,prompt){
+  var ar=document.getElementById('arSel').value;
+  return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(imgModel())+':generateContent?key='+key,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      contents:[{parts:[{text:prompt}]}],
+      generationConfig:{responseModalities:["IMAGE","TEXT"],imageConfig:{aspectRatio:ar}}
+    })
+  }).then(httpCheck).then(function(d){
+    var r=readParts(d);
+    for(var i=0;i<r.parts.length;i++){
+      var p=r.parts[i],id=p.inlineData||p.inline_data;
+      if(id)return'data:'+(id.mimeType||id.mime_type)+';base64,'+id.data;
+    }
+    var t=r.parts.filter(function(p){return p.text}).map(function(p){return p.text}).join('');
+    throw new Error('画像が生成されませんでした'+(r.reason?'（'+r.reason+'）':'')+(t?'\n'+t:''));
+  });
+}
+
+// Render
+function draw(){
+  var list=document.getElementById('mList');
+  var greet=document.getElementById('greet');
+  list.innerHTML='';
+  if(!msgs.length){greet.style.display='flex';list.style.display='none';return}
+  greet.style.display='none';list.style.display='flex';
+  msgs.forEach(function(m){
+    var div=document.createElement('div');
+    if(m.role==='user'){
+      div.className='msg msg-u';
+      var b=document.createElement('div');b.className='bub';b.textContent=m.content;
+      div.appendChild(b);
+    }else{
+      div.className='msg msg-a';
+      if(m.type==='image'&&m.content.indexOf('data:')===0){
+        var img=document.createElement('img');img.src=m.content;img.alt='生成画像';
+        div.appendChild(img);
+      }else{
+        div.textContent=m.content;
+      }
+    }
+    list.appendChild(div);
+  });
+  var w=document.getElementById('mMain');w.scrollTop=w.scrollHeight;
+}
+function showDot(){
+  document.getElementById('greet').style.display='none';
+  var list=document.getElementById('mList');
+  list.style.display='flex';
+  var div=document.createElement('div');
+  div.className='msg msg-a';div.id='dotEl';
+  div.innerHTML='<div class="dots"><span></span><span></span><span></span></div>';
+  list.appendChild(div);
+  var w=document.getElementById('mMain');w.scrollTop=w.scrollHeight;
+}
+function hideDot(){var el=document.getElementById('dotEl');if(el)el.remove()}
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+</script>
+</body>
+</html>
